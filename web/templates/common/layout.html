@@ -1,6 +1,5 @@
 {{define "layout"}}
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <title>{{.Title}}</title>
@@ -46,6 +45,11 @@
     </script>
     {{end}}
     <link{{.Nonce}} rel="search" type="application/opensearchdescription+xml" href="/opensearch.xml" title="Stripe Code Search" />
+    {{if .Data.HighlightCSS}}
+    <style type="text/css">
+      {{.Data.HighlightCSS}}
+    </style>
+    {{end}}
   </head>
   <body>
     {{if .IncludeHeader}}

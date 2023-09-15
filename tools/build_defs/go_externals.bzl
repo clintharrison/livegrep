@@ -6,7 +6,7 @@ load(
 def _normalize_repo_name(repo):
     return repo.replace("/", "_").replace("-", "_").replace(".", "_")
 
-def _github(repo, commit):
+def _github(repo, commit, name = None):
     name = "com_github_" + _normalize_repo_name(repo)
     importpath = "github.com/" + repo
     return struct(
@@ -61,6 +61,23 @@ _externals = [
         name = "org_golang_google_grpc",
         commit = "f74f0337644653eba7923908a4d7f79a4f3a267b",
         importpath = "google.golang.org/grpc",
+    ),
+    struct(
+        name = "com_github_dlclark_regexp2",
+        commit = "03d34d8ad254ae4e2fb4f58e0723420efa1c7c07",
+        importpath = "github.com/dlclark/regexp2",
+    ),
+    struct(
+        name = "com_github_alecthomas_repr",
+        commit = "9e33c100269547ef15f1487594524eab0a4630a4",
+        importpath = "github.com/alecthomas/repr",
+    ),
+    struct(
+        name = "com_github_alecthomas_chroma_v2",
+        commit = "c4527e8d5cf969976ce67f3ba5f9edde5ec27afd",
+        importpath = "github.com/alecthomas/chroma/v2",
+        remote = "https://github.com/alecthomas/chroma",
+        vcs = "git",
     ),
 ]
 

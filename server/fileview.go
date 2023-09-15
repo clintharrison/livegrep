@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"net/url"
 	"os/exec"
 	"path"
@@ -11,8 +12,18 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2/formatters"
+	html_formatter "github.com/alecthomas/chroma/v2/formatters/html"
+	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/alecthomas/chroma/v2/styles"
+	"golang.org/x/net/context"
+
 	"github.com/livegrep/livegrep/server/config"
+	"github.com/livegrep/livegrep/server/log"
 )
+
+const chromaStyle = "github"
 
 // Mapping from known file extensions to filetype hinting.
 var filenameToLangMap map[string]string = map[string]string{
@@ -86,6 +97,25 @@ var supportedReadmeExtensions = []string{
 }
 
 var supportedReadmeRegex = buildReadmeRegex(supportedReadmeExtensions)
+var HtmlFormatter *html_formatter.Formatter
+
+var codeFormatterCSS template.CSS
+
+func init() {
+	var b bytes.Buffer
+
+	HtmlFormatter = html_formatter.New(
+		html_formatter.Standalone(false),
+		html_formatter.WithClasses(true),
+		html_formatter.PreventSurroundingPre(true),
+	)
+	formatters.Register("html_partial", HtmlFormatter)
+
+	if err := HtmlFormatter.WriteCSS(&b, styles.Get(chromaStyle)); err != nil {
+		fmt.Printf("error generating syntax highlighting CSS: %v\n", err)
+	}
+	codeFormatterCSS = template.CSS(b.String())
+}
 
 type breadCrumbEntry struct {
 	Name string
@@ -108,12 +138,14 @@ type fileViewerContext struct {
 	ExternalDomain string
 	Permalink      string
 	Headlink       string
+	HighlightCSS   template.CSS
 }
 
 type sourceFileContent struct {
-	Content   string
-	LineCount int
-	Language  string
+	Content            string
+	LineCount          int
+	Language           string
+	HighlightedContent template.HTML
 }
 
 type directoryContent struct {
@@ -257,7 +289,19 @@ func languageFromFirstLine(line string) string {
 	return ""
 }
 
-func buildFileData(relativePath string, repo config.RepoConfig, commit string) (*fileViewerContext, error) {
+func highlightedSource(filename, language, content string) (string, error) {
+	lexer := lexers.Match(filename)
+	if lexer == nil {
+		lexer = lexers.Get(language)
+	}
+	var b bytes.Buffer
+	if err := quick.Highlight(&b, content, language, "html_partial", chromaStyle); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
+func buildFileData(ctx context.Context, relativePath string, repo config.RepoConfig, commit string) (*fileViewerContext, error) {
 	commitHash := commit
 	out, err := gitCommitHash(commit, repo.Path)
 	if err == nil {
@@ -322,7 +366,8 @@ func buildFileData(relativePath string, repo config.RepoConfig, commit string) (
 		if err != nil {
 			return nil, err
 		}
-		language := filenameToLangMap[filepath.Base(cleanPath)]
+		filename := filepath.Base(cleanPath)
+		language := filenameToLangMap[filename]
 		if language == "" {
 			language = extToLangMap[filepath.Ext(cleanPath)]
 		}
@@ -332,10 +377,15 @@ func buildFileData(relativePath string, repo config.RepoConfig, commit string) (
 				language = languageFromFirstLine(firstLine)
 			}
 		}
+		highlightedContent, err := highlightedSource(filename, language, content)
+		if err != nil {
+			log.Printf(ctx, "error highlighting file: %v")
+		}
 		fileContent = &sourceFileContent{
-			Content:   content,
-			LineCount: strings.Count(string(content), "\n"),
-			Language:  language,
+			Content:            content,
+			LineCount:          strings.Count(string(content), "\n"),
+			Language:           language,
+			HighlightedContent: template.HTML(highlightedContent),
 		}
 	}
 
@@ -374,5 +424,6 @@ func buildFileData(relativePath string, repo config.RepoConfig, commit string) (
 		ExternalDomain: externalDomain,
 		Permalink:      permalink,
 		Headlink:       headlink,
+		HighlightCSS:   codeFormatterCSS,
 	}, nil
 }

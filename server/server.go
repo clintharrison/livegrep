@@ -35,6 +35,7 @@ type page struct {
 	Config        *config.Config
 	AssetHashes   map[string]string
 	Nonce         template.HTMLAttr // either `` or ` nonce="..."`
+	HighlightCSS  template.CSS
 }
 
 type server struct {
@@ -159,7 +160,7 @@ func (s *server) ServeFile(ctx context.Context, w http.ResponseWriter, r *http.R
 		return
 	}
 
-	data, err := buildFileData(path, repo, commit)
+	data, err := buildFileData(ctx, path, repo, commit)
 	if err != nil {
 		http.Error(w, "Error reading file: "+err.Error(), 500)
 		return
@@ -177,6 +178,7 @@ func (s *server) ServeFile(ctx context.Context, w http.ResponseWriter, r *http.R
 		ScriptData:    script_data,
 		IncludeHeader: false,
 		Data:          data,
+		HighlightCSS:  data.HighlightCSS,
 	})
 }
 
