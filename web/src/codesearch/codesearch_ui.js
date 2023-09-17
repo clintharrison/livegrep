@@ -779,7 +779,8 @@ var CodesearchUI = function() {
 
       CodesearchUI.view = new ResultView({model: CodesearchUI.state});
 
-      CodesearchUI.input      = $('#searchbox');
+      CodesearchUI.lucky = false;
+      CodesearchUI.input = $('#searchbox');
       CodesearchUI.input_repos = $('#repos');
       CodesearchUI.input_backend = $('#backend');
       if (CodesearchUI.input_backend.length == 0)
@@ -909,6 +910,10 @@ var CodesearchUI = function() {
       if (parms['repo[]'])
         repos = repos.concat(parms['repo[]']);
       RepoSelector.updateSelected(repos);
+
+      if (parms.lucky) {
+        CodesearchUI.lucky = true;
+      }
     },
     init_controls_from_prefs: function() {
       var prefs = Cookies.getJSON('prefs');
@@ -1002,6 +1007,30 @@ var CodesearchUI = function() {
       CodesearchUI.state.handle_file_match(search, file_match);
     },
     search_done: function(search, time, search_type, why) {
+      // "I'm feeling lucky"-ish behavior: if there's a single match, redirect
+      // the user immediately to the view page for that match.
+      if (CodesearchUI.lucky) {
+        CodesearchUI.lucky = false;
+
+        const file_results = CodesearchUI.state.file_search_results;
+        const results = CodesearchUI.state.search_results;
+
+        // If there's a single file (path) match, redirect to that file.
+        if (file_results.length === 1 && results.length === 0) {
+          const match = file_results.at(0);
+          window.location.href = match.url();
+        } else if (
+          file_results.length === 0 &&
+          // Since content matches are already grouped by file, we need to
+          // additionally check the matches in the group.
+          results.length === 1 &&
+          results.at(0).matches.length == 1
+        ) {
+          const file = CodesearchUI.state.search_results.at(0);
+          const match = file.matches.at(0);
+          window.location.href = match.url();
+        }
+      }
       CodesearchUI.state.handle_done(search, time, search_type, why);
     },
     repo_urls: {}
