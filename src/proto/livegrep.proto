@@ -3,12 +3,18 @@ syntax = "proto3";
 import "src/proto/config.proto";
 
 message Query {
+    // line contains a regular expression to match within a file
     string line = 1;
-    string file = 2;
+    // file contains a list of regular expressions to match a file's
+    // path against. When multiple values are present, a file must match all
+    // given expressions.
+    repeated string file = 2;
     string repo = 3;
     string tags = 4;
     bool fold_case = 5;
-    string not_file = 6;
+    // not_file contains a list of regular expressions to exclude from the
+    // result set
+    repeated string not_file = 6;
     string not_repo = 7;
     string not_tags = 8;
     int32 max_matches = 9;

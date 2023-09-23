@@ -38,10 +38,20 @@ func onlyOneSynonym(ops map[string]string, op1 string, op2 string) (string, erro
 	return ops[op2], nil
 }
 
+func ensureSingleValue[T any](key string, vals []T) (T, error) {
+	if len(vals) > 1 {
+		return vals[0], fmt.Errorf("multiple values for %s:", key)
+	}
+	if len(vals) == 1 {
+		return vals[0], nil
+	}
+	return *new(T), nil
+}
+
 func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 	var out pb.Query
 
-	ops := make(map[string]string)
+	ops := make(map[string][]string)
 	key := ""
 	term := ""
 	q := strings.TrimSpace(query)
@@ -52,10 +62,7 @@ func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 		m := pieceRE.FindStringSubmatchIndex(q)
 		if m == nil {
 			term += q
-			if _, alreadySet := ops[key]; alreadySet {
-				return out, fmt.Errorf("got term twice: %s", key)
-			}
-			ops[key] = term
+			ops[key] = append(ops[key], term)
 			break
 		}
 
@@ -71,10 +78,7 @@ func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 				term += " "
 
 			} else {
-				if _, alreadySet := ops[key]; alreadySet {
-					return out, fmt.Errorf("got term twice: %s", key)
-				}
-				ops[key] = term
+				ops[key] = append(ops[key], term)
 				key = ""
 				term = ""
 				inRegex = globalRegex
@@ -132,7 +136,7 @@ func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 					if _, alreadySet := ops[key]; alreadySet {
 						return out, fmt.Errorf("main search term must be contiguous")
 					}
-					ops[key] = term
+					ops[key] = append(ops[key], term)
 				}
 				term = ""
 				key = newKey
@@ -146,20 +150,45 @@ func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 		justGotSpace = (match == " ")
 	}
 
+	// Handle synonyms
+	out.File = append(ops["file"], ops["path"]...)
+	out.NotFile = append(ops["-file"], ops["-path"]...)
+
+	for op, value := range ops {
+		// These are allowed multiple times
+		if op == "file" || op == "path" || op == "-file" || op == "-path" {
+			continue
+		}
+		if len(value) > 1 {
+			return out, fmt.Errorf("got term twice: %s", key)
+		}
+	}
+
 	var err error
-	if out.File, err = onlyOneSynonym(ops, "file", "path"); err != nil {
+	out.Repo, err = ensureSingleValue("repo", ops["repo"])
+	if err != nil {
 		return out, err
 	}
-	out.Repo = ops["repo"]
-	out.Tags = ops["tags"]
-	if out.NotFile, err = onlyOneSynonym(ops, "-file", "-path"); err != nil {
+	out.Tags, err = ensureSingleValue("tags", ops["tags"])
+	if err != nil {
 		return out, err
 	}
-	out.NotRepo = ops["-repo"]
-	out.NotTags = ops["-tags"]
+	out.NotRepo, err = ensureSingleValue("-repo", ops["-repo"])
+	if err != nil {
+		return out, err
+	}
+	out.NotTags, err = ensureSingleValue("tags", ops["-tags"])
+	if err != nil {
+		return out, err
+	}
 	var bits []string
 	for _, k := range []string{"", "case", "lit"} {
-		bit := strings.TrimSpace(ops[k])
+		// We can assume there is either 0 or 1 value for these, since multiple
+		// values were already reported as an error.
+		if _, ok := ops[k]; !ok {
+			continue
+		}
+		bit := strings.TrimSpace(ops[k][0])
 		if k == "lit" || !globalRegex {
 			bit = regexp.QuoteMeta(bit)
 		}
@@ -177,15 +206,25 @@ func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 	}
 
 	if !globalRegex {
-		out.File = regexp.QuoteMeta(out.File)
-		out.NotFile = regexp.QuoteMeta(out.NotFile)
+		out.File = make([]string, len(out.File))
+		for i, f := range out.File {
+			out.File[i] = regexp.QuoteMeta(f)
+		}
+		out.NotFile = make([]string, len(out.NotFile))
+		for i, f := range out.NotFile {
+			out.NotFile[i] = regexp.QuoteMeta(f)
+		}
 		out.Repo = regexp.QuoteMeta(out.Repo)
 		out.NotRepo = regexp.QuoteMeta(out.NotRepo)
 	}
 
-	if out.Line == "" && out.File != "" {
-		out.Line = out.File
-		out.File = ""
+	if len(out.Line) == 0 && len(out.File) != 0 {
+		// older versions set Line to the value of File for filename-only
+		// searches, and empty File.
+		// to preserve compatibility, we put a reasonable value in Line and
+		// leave the list in File. older backends will ignore the list, and
+		// newer backends will use Line to determine which term is highlighted.
+		out.Line = out.File[0]
 		out.FilenameOnly = true
 	}
 
@@ -196,7 +235,8 @@ func ParseQuery(query string, globalRegex bool) (pb.Query, error) {
 	} else {
 		out.FoldCase = strings.IndexAny(out.Line, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == -1
 	}
-	if v, ok := ops["max_matches"]; ok && v != "" {
+	if v, ok := ops["max_matches"]; ok && v[0] != "" {
+		v := v[0]
 		i, err := strconv.Atoi(v)
 		if err == nil {
 			out.MaxMatches = int32(i)
