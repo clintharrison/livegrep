@@ -70,34 +70,71 @@ const PathResults = () => {
 };
 
 // TODO: lno
-const viewPathForResult: (res: Result, lno?: number) => string = (res, lno) => {
+const internalViewForResult: (res: Result, lno?: number) => string = (
+  res,
+  lno
+) => {
   const repo = res.tree;
   const version = res.version;
   const path = res.path;
   return `/view/${repo}/${version}/${path}`;
 };
 
+const externalLinkForResult: (
+  url_template: string,
+  res: Result,
+  lno?: number
+) => string = (url_template, res, lno) => {
+  const repo = res.tree;
+  const version = res.version;
+  const path = res.path;
+  let url = url_template.replace("{path}", path);
+  url = url.replace("{name}", repo);
+  url = url.replace("{version}", version);
+  if (lno) {
+    url = url.replace("{lno}", lno.toString());
+  } else if (url.endsWith("#L{lno}")) {
+    url = url.replace("#L{lno}", "");
+  } else {
+    url = url.replace("{lno}", "1");
+  }
+  return url;
+};
+
 const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
   const repo = results[0].tree;
   const version = results[0].version;
   const path = results[0].path;
+  const linkConfigs = useSearchStore
+    .getState()
+    .repoInfo?.link_configs?.filter((config) => {
+      return !config.whitelist_pattern || config.whitelist_pattern.test(id);
+    });
 
   const matchGroupChunks = dedupeMatchGroup(results);
   return (
     <div className="file-group">
       <div className="header">
         <span className="header-path">
-          <a href={viewPathForResult(results[0])} className="result-path">
+          <a href={internalViewForResult(results[0])} className="result-path">
             <span className="repo">{repo}:</span>
             <span className="version">{version}:</span>
             <span className="filename">{path}</span>
-            {/* TODO: implement file action links ("Open in GitHub")
-            <span className="header-link">
-              <a href="" className="file-action-link"></a>
-            </span>
-            */}
           </a>
         </span>
+        {linkConfigs?.map((config) => {
+          const template = config.url_template;
+          return (
+            <span key={`${id}:${template}`} className="header-link">
+              <a
+                href={externalLinkForResult(template, results[0])}
+                className="file-action-link"
+              >
+                {config.label}
+              </a>
+            </span>
+          );
+        })}
       </div>
       {matchGroupChunks.map((chunk) => (
         <div key={id + chunk.lines[0].lno} className="match">
@@ -121,7 +158,7 @@ const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
               return (
                 <React.Fragment key={key}>
                   <a
-                    href={viewPathForResult(results[0], line.lno)}
+                    href={internalViewForResult(results[0], line.lno)}
                     className="lno-link"
                   >
                     <span

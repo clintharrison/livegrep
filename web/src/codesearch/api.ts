@@ -108,7 +108,7 @@ export type InternalViewRepo = {
 export type LinkConfig = {
   label: string;
   url_template: string;
-  whitelist_pattern: string;
+  whitelist_pattern: RegExp;
   target: string;
 };
 
@@ -127,6 +127,9 @@ export type RepoInfo = {
 
 export async function fetchRepoInfo(): Promise<RepoInfo> {
   const response = await fetch("/api/v1/repos");
-  const json = await response.json();
+  const json = (await response.json()) as RepoInfo;
+  json.link_configs.forEach((lc) => {
+    lc.whitelist_pattern = new RegExp(lc.whitelist_pattern);
+  });
   return json as RepoInfo;
 }
