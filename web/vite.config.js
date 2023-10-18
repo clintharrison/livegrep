@@ -3,7 +3,7 @@ export default function defineConfig({ command }) {
     return {
       server: {
         proxy: {
-          "^/api/v1/(search|repos)|view": {
+          "^/api/v1/(search|repos)|view|^/assets/": {
             target: "http://localhost:8910",
             secure: false,
           },

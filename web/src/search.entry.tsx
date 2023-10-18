@@ -8,7 +8,7 @@ import { useSearchStore } from "./SearchStore";
 import { Result, SearchType, fileId } from "./codesearch/api";
 import { dedupeMatchGroup } from "./codesearch/match_group";
 
-const DEBOUNCE_TIME_MS = 1000;
+const DEBOUNCE_TIME_MS = 200;
 
 const ResultStats = () => {
   const searchType = useSearchStore(
@@ -75,9 +75,8 @@ const internalViewForResult: (res: Result, lno?: number) => string = (
   lno
 ) => {
   const repo = res.tree;
-  const version = res.version;
   const path = res.path;
-  return `/view/${repo}/${version}/${path}`;
+  return `/view/${repo}/${path}`;
 };
 
 const externalLinkForResult: (
