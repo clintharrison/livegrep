@@ -245,6 +245,10 @@ a:hover {
     display: none;
 }
 
+#regex-error.show {
+    display: block;
+}
+
 #errortext {
     color: var(--color-foreground-error);
     font-size: 14px;

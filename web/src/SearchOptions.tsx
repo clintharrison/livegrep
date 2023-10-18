@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useSearchStore } from "./SearchStore";
 
 export type Options = {
   fold_case: "true" | "false" | "auto";
@@ -6,16 +7,10 @@ export type Options = {
   context: boolean;
 };
 
-export function SearchOptions({
-  options,
-  setOptions,
-}: {
-  options: Options;
-  setOptions: (Options) => void;
-}): React.JSX.Element {
-  const onCaseChange = (e) => {
-    setOptions({ ...options, fold_case: e.target.value });
-  };
+export const SearchOptions = () => {
+  const options = useSearchStore((state) => state.options);
+  const setOptions = useSearchStore((state) => state.setOptions);
+  const onCaseChange = (e) => setOptions({ fold_case: e.target.value } as any);
 
   return (
     <div className="search-options">
@@ -93,4 +88,4 @@ export function SearchOptions({
       </div>
     </div>
   );
-}
+};

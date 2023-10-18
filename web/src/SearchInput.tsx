@@ -1,16 +1,11 @@
 import * as React from "react";
+import { useSearchStore } from "./SearchStore";
 
-type Props = {
-  query: string;
-  error: string | null;
-  onQueryChange: (string) => void;
-};
+export const SearchInput = () => {
+  const query = useSearchStore((state) => state.rawQuery);
+  const setQuery = useSearchStore((state) => state.setRawQuery);
+  const error = useSearchStore((state) => state.error);
 
-export function SearchInput({
-  query,
-  error,
-  onQueryChange,
-}: Props): React.JSX.Element {
   return (
     <div className="search-inputs">
       <div className="prefixed-input">
@@ -23,7 +18,7 @@ export function SearchInput({
           tabIndex={1}
           required={true}
           value={query}
-          onInput={(e) => onQueryChange((e.target as HTMLInputElement).value)}
+          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
         />
       </div>
       <div id="regex-error" className={error ? "show" : undefined}>
@@ -35,4 +30,4 @@ export function SearchInput({
       </div>
     </div>
   );
-}
+};
