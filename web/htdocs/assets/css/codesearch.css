@@ -245,6 +245,10 @@ a:hover {
     display: none;
 }
 
+#searchtimebox.show {
+    display: inline;
+}
+
 #regex-error.show,
 #resultarea.show {
     display: block;

@@ -35,7 +35,7 @@ const ResultStats = () => {
           : numSearchResults}
         {why !== "NONE" ? "+" : ""} matches found
         {elapsed ? (
-          <span id="searchtimebox">
+          <span id="searchtimebox" className="show">
             <span className="label"> / </span>
             <span id="searchtime">{elapsed / 1000}s</span>
           </span>
@@ -142,6 +142,7 @@ const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
             {chunk.lines.map((line) => {
               const key = line.bounds ? `M${line.lno}` : line.lno.toString();
               let lineContent: React.ReactNode = line.line;
+              let linksContent: React.ReactNode = null;
               if (line.bounds) {
                 // TODO: support more than one match
                 const bounds = line.bounds;
@@ -154,6 +155,23 @@ const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
                     {line.line.slice(bounds[1])}
                   </>
                 );
+
+                linksContent = linkConfigs?.map((config) => {
+                  return (
+                    <span className="matchlinks">
+                      <a
+                        href={externalLinkForResult(
+                          config.url_template,
+                          results[0],
+                          line.lno
+                        )}
+                        className="file-action-link"
+                      >
+                        {config.label}
+                      </a>
+                    </span>
+                  );
+                });
               }
               return (
                 <React.Fragment key={key}>
@@ -166,8 +184,12 @@ const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
                       aria-label={line.bounds ? `${line.lno}:` : `${line.lno}-`}
                     ></span>
                   </a>
-                  <span>{lineContent}</span>
-                  <span></span>
+                  <span className={line.bounds ? "matchline" : ""}>
+                    {lineContent}
+                  </span>
+                  <span className={line.bounds ? "matchlinks" : ""}>
+                    {linksContent}
+                  </span>
                 </React.Fragment>
               );
             })}
