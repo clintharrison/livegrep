@@ -5,7 +5,8 @@ import { createRoot } from "react-dom/client";
 import { SearchInput } from "./SearchInput";
 import { SearchOptions } from "./SearchOptions";
 import { useSearchStore } from "./SearchStore";
-import { SearchType } from "./codesearch/api";
+import { Result, SearchType, fileId } from "./codesearch/api";
+import { dedupeMatchGroup } from "./codesearch/match_group";
 
 const DEBOUNCE_TIME_MS = 1000;
 
@@ -53,7 +54,11 @@ const PathResults = () => {
   const fileResults = useSearchStore(
     (state) => state.searchResponse?.response?.file_results
   );
+  const searchType = useSearchStore(
+    (state) => state.searchResponse?.response?.search_type
+  );
   if (!fileResults) return;
+  if (searchType !== SearchType.FilenameOnly || fileResults.length > 10) return;
 
   return fileResults.map((fr) => {
     return (
@@ -64,19 +69,119 @@ const PathResults = () => {
   });
 };
 
+// TODO: lno
+const viewPathForResult: (res: Result, lno?: number) => string = (res, lno) => {
+  const repo = res.tree;
+  const version = res.version;
+  const path = res.path;
+  return `/view/${repo}/${version}/${path}`;
+};
+
+const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
+  const repo = results[0].tree;
+  const version = results[0].version;
+  const path = results[0].path;
+
+  const matchGroupChunks = dedupeMatchGroup(results);
+  return (
+    <div className="file-group">
+      <div className="header">
+        <span className="header-path">
+          <a href={viewPathForResult(results[0])} className="result-path">
+            <span className="repo">{repo}:</span>
+            <span className="version">{version}:</span>
+            <span className="filename">{path}</span>
+            {/* TODO: implement file action links ("Open in GitHub")
+            <span className="header-link">
+              <a href="" className="file-action-link"></a>
+            </span>
+            */}
+          </a>
+        </span>
+      </div>
+      {matchGroupChunks.map((chunk) => (
+        <div key={id + chunk.lines[0].lno} className="match">
+          <div className="contents">
+            {chunk.lines.map((line) => {
+              const key = line.bounds ? `M${line.lno}` : line.lno.toString();
+              let lineContent: React.ReactNode = line.line;
+              if (line.bounds) {
+                // TODO: support more than one match
+                const bounds = line.bounds;
+                lineContent = (
+                  <>
+                    {line.line.slice(0, bounds[0])}
+                    <span className="matchstr">
+                      {line.line.slice(bounds[0], bounds[1])}
+                    </span>
+                    {line.line.slice(bounds[1])}
+                  </>
+                );
+              }
+              return (
+                <React.Fragment key={key}>
+                  <a
+                    href={viewPathForResult(results[0], line.lno)}
+                    className="lno-link"
+                  >
+                    <span
+                      className="lno"
+                      aria-label={line.bounds ? `${line.lno}:` : `${line.lno}-`}
+                    ></span>
+                  </a>
+                  <span>{lineContent}</span>
+                  <span></span>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const GroupedResults = () => {
-  return null;
+  const results = useSearchStore(
+    (state) => state.searchResponse?.response?.results
+  );
+  if (!results) return;
+
+  // Group the results by filename
+  const fileGroups: { [key: string]: Result[] } = {};
+  for (const result of results) {
+    const id = fileId(result);
+    if (fileGroups.hasOwnProperty(id)) {
+      fileGroups[id].push(result);
+    } else {
+      fileGroups[id] = [result];
+    }
+  }
+
+  return Object.keys(fileGroups).map((id) => {
+    const results = fileGroups[id];
+    return <FileGroup key={id} id={id} results={results} />;
+  });
 };
 
 const SearchResults = () => {
+  const resultLen = useSearchStore(
+    (state) => state.searchResponse?.response?.results.length
+  );
   return (
     <div id="resultbox">
-      <ResultStats />
-      <div id="results">
-        <FileExtensions />
-        <PathResults />
-        <GroupedResults />
-      </div>
+      {resultLen ? (
+        <div id="resultarea" className="show">
+          <ResultStats />
+          <div id="results">
+            <FileExtensions />
+            <PathResults />
+            <GroupedResults />
+          </div>
+        </div>
+      ) : (
+        <div id="helparea"></div>
+      )}
     </div>
   );
 };
@@ -84,6 +189,7 @@ const SearchResults = () => {
 const SearchPage = () => {
   // Fetch on first load
   useEffect(() => {
+    useSearchStore.getState().fetchInitData();
     useSearchStore.getState().fetchResults();
   }, []);
 

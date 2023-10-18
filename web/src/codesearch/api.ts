@@ -24,7 +24,7 @@ export type Result = {
   tree: string;
   version: string;
   path: string;
-  line_number: number;
+  lno: number;
   context_before: string[];
   context_after: string[];
   bounds: [number, number];
@@ -50,6 +50,10 @@ export type SearchResponse = {
   clientElapsedMs: number;
   response: ReplySearch;
 };
+
+export function fileId(result: Result): string {
+  return result.tree + ":" + result.version + ":" + result.path;
+}
 
 export async function fetchSearchResults(
   query: Query
@@ -87,4 +91,42 @@ export async function fetchSearchResults(
   } catch (e) {
     return [undefined, e.message];
   }
+}
+
+export type InternalViewRepo = {
+  path: string;
+  name: string;
+  revisions: string[];
+  metadata: {
+    url_pattern?: string;
+    remote?: string;
+    github?: string;
+    labels?: string[];
+  };
+};
+
+export type LinkConfig = {
+  label: string;
+  url_template: string;
+  whitelist_pattern: string;
+  target: string;
+};
+
+export type RepoInfo = {
+  repo_urls: {
+    [key: string]: {
+      [key: string]: string;
+    };
+  };
+  internal_view_repos: {
+    [key: string]: InternalViewRepo;
+  };
+  default_search_repos: string[];
+  link_configs: LinkConfig[];
+};
+
+export async function fetchRepoInfo(): Promise<RepoInfo> {
+  const response = await fetch("/api/v1/repos");
+  const json = await response.json();
+  return json as RepoInfo;
 }

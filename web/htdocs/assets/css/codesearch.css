@@ -245,7 +245,8 @@ a:hover {
     display: none;
 }
 
-#regex-error.show {
+#regex-error.show,
+#resultarea.show {
     display: block;
 }
 

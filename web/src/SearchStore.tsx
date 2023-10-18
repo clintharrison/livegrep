@@ -2,7 +2,12 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { Options } from "./SearchOptions";
-import { SearchResponse, fetchSearchResults } from "./codesearch/api";
+import {
+  RepoInfo,
+  SearchResponse,
+  fetchRepoInfo,
+  fetchSearchResults,
+} from "./codesearch/api";
 
 type State = {
   // use this value to see every user keystroke
@@ -12,6 +17,7 @@ type State = {
   error?: string;
   options: Options;
   searchResponse?: SearchResponse;
+  repoInfo?: RepoInfo;
 };
 
 type Actions = {
@@ -19,10 +25,11 @@ type Actions = {
   setDebouncedQuery: (debouncedQuery: string) => void;
   setOptions: (options: Options) => void;
   setError: (error: string | undefined) => void;
+  fetchInitData: () => Promise<void>;
   fetchResults: () => Promise<void>;
 };
 
-const defaultQuery = "file:\\.go$ path to an index";
+const defaultQuery = "file:.go path";
 
 export const useSearchStore = create(
   devtools(
@@ -40,6 +47,14 @@ export const useSearchStore = create(
       setDebouncedQuery: async (q) => {
         set({ debouncedQuery: q });
         await get().fetchResults();
+      },
+      fetchInitData: async () => {
+        try {
+          const repoInfo = await fetchRepoInfo();
+          set({ repoInfo });
+        } catch {
+          // ignore: we might not have link configs, but that's ok
+        }
       },
       fetchResults: async () => {
         const [results, error] = await fetchSearchResults({
