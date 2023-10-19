@@ -100,6 +100,10 @@
     }
 }
 
+body {
+    font-size: 14px;
+}
+
 .bootstrap-select.btn-group .dropdown-menu .notify,
 .bootstrap-select.btn-group .no-results {
     background: var(--color-bootstrap-select-background);
