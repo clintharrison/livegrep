@@ -25,6 +25,7 @@ type Actions = {
   setDebouncedQuery: (debouncedQuery: string) => void;
   setOptions: (options: Options) => void;
   setError: (error: string | undefined) => void;
+  appendQuery: (query: string) => void;
   fetchInitData: () => Promise<void>;
   fetchResults: () => Promise<void>;
 };
@@ -39,14 +40,21 @@ export const useSearchStore = create(
       error: undefined,
       options: {
         fold_case: "auto",
-        regex: false,
+        regex: true,
         context: true,
       },
 
       setRawQuery: (q) => set({ rawQuery: q }),
       setDebouncedQuery: async (q) => {
-        set({ debouncedQuery: q });
+        set({ error: undefined, debouncedQuery: q });
         await get().fetchResults();
+      },
+      appendQuery: (q) => {
+        const query = get().rawQuery;
+        set({
+          rawQuery: query + " " + q,
+          debouncedQuery: query + " " + q,
+        });
       },
       fetchInitData: async () => {
         try {
@@ -57,6 +65,10 @@ export const useSearchStore = create(
         }
       },
       fetchResults: async () => {
+        if (get().debouncedQuery.trim().length === 0) {
+          return;
+        }
+
         const [results, error] = await fetchSearchResults({
           query: get().debouncedQuery,
           foldCase: get().options.fold_case,

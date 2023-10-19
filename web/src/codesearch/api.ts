@@ -72,9 +72,6 @@ export async function fetchSearchResults(
       method: "POST",
       body: body,
     });
-    if (!response.ok) {
-      return [undefined, `HTTP ${response.status}: ${response.statusText}`];
-    }
 
     const json = await response.json();
     const elapsed = Date.now() - start;

@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { SearchInput } from "./SearchInput";
 import { SearchOptions } from "./SearchOptions";
 import { useSearchStore } from "./SearchStore";
-import { Result, SearchType, fileId } from "./codesearch/api";
+import { FileResult, Result, SearchType, fileId } from "./codesearch/api";
 import { dedupeMatchGroup } from "./codesearch/match_group";
 
 const DEBOUNCE_TIME_MS = 200;
@@ -45,9 +45,60 @@ const ResultStats = () => {
   );
 };
 
+const fileExtensionRegex = /[^\/](\.[a-z.]{1,6})$/i;
+
 const FileExtensions = () => {
-  // TODO: implement the Narrow to: buttons
-  return null;
+  const fileResults =
+    useSearchStore((state) => state.searchResponse?.response?.file_results) ||
+    [];
+  const searchResults =
+    useSearchStore((state) => state.searchResponse?.response?.results) || [];
+  const appendQuery = useSearchStore((state) => state.appendQuery);
+
+  if (fileResults.length + searchResults.length === 0) return null;
+
+  // Count the number of results for each extension, for both result types
+  var extensions: { [key: string]: number } = {};
+  for (const result of fileResults) {
+    const match = result.path.match(fileExtensionRegex);
+    if (match !== null) {
+      const ext = match[1];
+      extensions[ext] = extensions[ext] ? extensions[ext] + 1 : 1;
+    }
+  }
+  for (const result of searchResults) {
+    const match = result.path.match(fileExtensionRegex);
+    if (match !== null) {
+      const ext = match[1];
+      extensions[ext] = extensions[ext] ? extensions[ext] + 1 : 1;
+    }
+  }
+
+  // Don't display the extension buttons if we only have one
+  if (Object.keys(extensions).length <= 1) return null;
+
+  // Display the most common extensions
+  const sortedExtensions = Object.keys(extensions).sort((a, b) => {
+    return extensions[b] - extensions[a];
+  });
+
+  return (
+    <div className="file-extensions">
+      Narrow to:
+      {sortedExtensions.slice(0, 5).map((ext) => (
+        <button
+          key={ext}
+          className="file-extension"
+          onClick={(e) => {
+            e.preventDefault();
+            appendQuery(`path:${ext}`);
+          }}
+        >
+          {ext}
+        </button>
+      ))}
+    </div>
+  );
 };
 
 const PathResults = () => {
@@ -57,26 +108,45 @@ const PathResults = () => {
   const searchType = useSearchStore(
     (state) => state.searchResponse?.response?.search_type
   );
-  if (!fileResults) return;
-  if (searchType !== SearchType.FilenameOnly || fileResults.length > 10) return;
+  if (!fileResults || fileResults.length === 0) return;
+  if (searchType !== SearchType.FilenameOnly && fileResults.length > 10) return;
 
-  return fileResults.map((fr) => {
-    return (
-      <p key={`${fr.tree}:${fr.version}:${fr.path}`}>
-        {fr.tree}:{fr.version}:{fr.path}
-      </p>
-    );
-  });
+  return (
+    <div className="path-results">
+      {fileResults.map((fr) => {
+        const { tree, path, version, bounds } = fr;
+        return (
+          <div key={`${tree}:${version}:${path}`} className="filename-match">
+            <a
+              href={internalViewForResult(fr)}
+              className="label header result-path"
+            >
+              <span className="repo">{tree}:</span>
+              <span className="version">{version}:</span>
+              {path.slice(0, bounds[0])}
+              <span className="matchstr">
+                {path.slice(bounds[0], bounds[1])}
+              </span>
+              {path.slice(bounds[1])}
+            </a>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
-// TODO: lno
-const internalViewForResult: (res: Result, lno?: number) => string = (
-  res,
-  lno
-) => {
+const internalViewForResult: (
+  res: Result | FileResult,
+  lno?: number
+) => string = (res, lno) => {
   const repo = res.tree;
   const path = res.path;
-  return `/view/${repo}/${path}`;
+  let url = `/view/${repo}/${path}`;
+  if (lno !== undefined) {
+    url += `#L${lno}`;
+  }
+  return url;
 };
 
 const externalLinkForResult: (
@@ -139,7 +209,9 @@ const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
         <div key={id + chunk.lines[0].lno} className="match">
           <div className="contents">
             {chunk.lines.map((line) => {
-              const key = line.bounds ? `M${line.lno}` : line.lno.toString();
+              const key = line.bounds
+                ? `${path}:${line.lno}:M`
+                : `${path}:${line.lno}`;
               let lineContent: React.ReactNode = line.line;
               let linksContent: React.ReactNode = null;
               if (line.bounds) {
@@ -157,7 +229,7 @@ const FileGroup = ({ id, results }: { id: string; results: Result[] }) => {
 
                 linksContent = linkConfigs?.map((config) => {
                   return (
-                    <span className="matchlinks">
+                    <span key={`${key}:`} className="matchlinks">
                       <a
                         href={externalLinkForResult(
                           config.url_template,
@@ -282,7 +354,7 @@ const SearchPage = () => {
 
 const App = () => <SearchPage />;
 
-const rootElement = document.getElementById("root");
+const rootElement = document.getElementById("reactRoot");
 if (rootElement) {
   const root = createRoot(rootElement);
   root.render(
